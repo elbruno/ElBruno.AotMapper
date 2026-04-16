@@ -25,6 +25,10 @@ packages/
 *.suo
 *.cache
 *.DotSettings.user
+*.lscache
+
+# Copilot
+.copilot/
 
 # OS
 Thumbs.db
