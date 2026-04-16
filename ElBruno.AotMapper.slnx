@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ElBruno.AotMapper/ElBruno.AotMapper.csproj" />
+    <Project Path="src/ElBruno.AotMapper.Generator/ElBruno.AotMapper.Generator.csproj" />
+    <Project Path="src/ElBruno.AotMapper.AspNetCore/ElBruno.AotMapper.AspNetCore.csproj" />
+    <Project Path="src/ElBruno.AotMapper.EntityFramework/ElBruno.AotMapper.EntityFramework.csproj" />
+  </Folder>
+  <Folder Name="/src/tests/">
+    <Project Path="src/tests/ElBruno.AotMapper.Tests/ElBruno.AotMapper.Tests.csproj" />
+    <Project Path="src/tests/ElBruno.AotMapper.Generator.Tests/ElBruno.AotMapper.Generator.Tests.csproj" />
+  </Folder>
+  <Folder Name="/src/samples/">
+    <Project Path="src/samples/MinimalApiSample/MinimalApiSample.csproj" />
+    <Project Path="src/samples/NativeAotSample/NativeAotSample.csproj" />
+    <Project Path="src/samples/EfProjectionSample/EfProjectionSample.csproj" />
+  </Folder>
+</Solution>
