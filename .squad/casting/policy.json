@@ -1,0 +1,5 @@
+{
+  "universes": ["TheMatrix"],
+  "default_capacity": 15,
+  "overflow_policy": "diegetic_expansion"
+}

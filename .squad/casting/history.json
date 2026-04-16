@@ -1,0 +1,14 @@
+[
+  {
+    "assignment_id": "aotmapper-init-20260416",
+    "universe": "TheMatrix",
+    "timestamp": "2026-04-16T01:24:00Z",
+    "agents": [
+      { "name": "Morpheus", "role": "Lead" },
+      { "name": "Neo", "role": "Generator Dev" },
+      { "name": "Trinity", "role": "Integration Dev" },
+      { "name": "Tank", "role": "Tester" },
+      { "name": "Oracle", "role": "DevRel" }
+    ]
+  }
+]
