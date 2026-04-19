@@ -179,6 +179,13 @@ internal static class MappingParser
             return MappingStrategy.CollectionMapping;
         }
 
+        // Check for dictionary types
+        if (IsDictionaryType(sourceType, out _, out _) &&
+            IsDictionaryType(destType, out _, out _))
+        {
+            return MappingStrategy.DictionaryMapping;
+        }
+
         // Check for enum conversions
         if (sourceUnwrapped.TypeKind == TypeKind.Enum && destUnwrapped.TypeKind == TypeKind.Enum)
         {
@@ -193,6 +200,18 @@ internal static class MappingParser
         if (sourceUnwrapped.SpecialType == SpecialType.System_String && destUnwrapped.TypeKind == TypeKind.Enum)
         {
             return MappingStrategy.StringToEnum;
+        }
+
+        // Enum to int conversion
+        if (sourceUnwrapped.TypeKind == TypeKind.Enum && IsIntegralType(destUnwrapped))
+        {
+            return MappingStrategy.EnumToInt;
+        }
+
+        // Int to enum conversion
+        if (IsIntegralType(sourceUnwrapped) && destUnwrapped.TypeKind == TypeKind.Enum)
+        {
+            return MappingStrategy.IntToEnum;
         }
 
         // Check if destination type has mapping
@@ -247,6 +266,39 @@ internal static class MappingParser
         }
 
         return false;
+    }
+
+    private static bool IsDictionaryType(ITypeSymbol type, out ITypeSymbol? keyType, out ITypeSymbol? valueType)
+    {
+        keyType = null;
+        valueType = null;
+
+        if (type is INamedTypeSymbol namedType && namedType.TypeArguments.Length == 2)
+        {
+            var typeName = namedType.OriginalDefinition.ToDisplayString();
+            if (typeName.StartsWith("System.Collections.Generic.Dictionary<") ||
+                typeName.StartsWith("System.Collections.Generic.IDictionary<") ||
+                typeName.StartsWith("System.Collections.Generic.IReadOnlyDictionary<"))
+            {
+                keyType = namedType.TypeArguments[0];
+                valueType = namedType.TypeArguments[1];
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsIntegralType(ITypeSymbol type)
+    {
+        return type.SpecialType == SpecialType.System_Int32 ||
+               type.SpecialType == SpecialType.System_Int64 ||
+               type.SpecialType == SpecialType.System_Int16 ||
+               type.SpecialType == SpecialType.System_Byte ||
+               type.SpecialType == SpecialType.System_SByte ||
+               type.SpecialType == SpecialType.System_UInt32 ||
+               type.SpecialType == SpecialType.System_UInt64 ||
+               type.SpecialType == SpecialType.System_UInt16;
     }
 
     private static bool HasMapIgnoreAttribute(ISymbol symbol)

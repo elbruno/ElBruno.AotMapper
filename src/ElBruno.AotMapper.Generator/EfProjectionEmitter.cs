@@ -141,8 +141,16 @@ internal static class EfProjectionEmitter
                 case MappingStrategy.CollectionMapping:
                     return "contains collection mapping (not supported in ProjectTo)";
 
+                case MappingStrategy.DictionaryMapping:
+                    return "contains dictionary mapping (not supported in ProjectTo)";
+
                 case MappingStrategy.StringToEnum:
                     return "contains String-to-Enum conversion (use Enum.Parse in post-processing)";
+
+                case MappingStrategy.EnumToInt:
+                case MappingStrategy.IntToEnum:
+                    // These are EF-compatible
+                    break;
             }
         }
 
