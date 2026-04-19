@@ -60,7 +60,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Publish NativeAOT sample
-        run: dotnet publish src/samples/NativeAotSample/NativeAotSample.csproj -c Release -f net8.0 -r linux-x64 -p:PublishAot=true -o ./aot-out
+        run: dotnet publish src/samples/NativeAotSample/NativeAotSample.csproj -c Release -f net8.0 -r linux-x64 -o ./aot-out
 
       - name: Run NativeAOT binary
         run: |
