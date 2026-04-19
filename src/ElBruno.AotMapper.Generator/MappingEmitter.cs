@@ -32,6 +32,19 @@ internal static class MappingEmitter
         // Generate collection mapping method
         EmitCollectionMappingMethod(sb, model);
 
+        // Generate EF Core projection method if compatible
+        var (projectionCode, incompatibilityReason) = EfProjectionEmitter.TryEmitProjectionMethod(model);
+        if (projectionCode != null)
+        {
+            sb.AppendLine();
+            sb.Append(projectionCode);
+        }
+        else if (incompatibilityReason != null)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"        // ProjectTo{model.DestinationTypeName}() not generated: {incompatibilityReason}");
+        }
+
         sb.AppendLine("    }");
         
         if (!string.IsNullOrEmpty(model.DestinationTypeNamespace))

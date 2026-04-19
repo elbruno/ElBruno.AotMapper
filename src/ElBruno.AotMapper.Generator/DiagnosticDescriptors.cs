@@ -45,4 +45,12 @@ internal static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ProjectionNotEfCompatible = new(
+        id: "AOTMAP007",
+        title: "Projection not EF-compatible",
+        messageFormat: "Mapping from '{0}' to '{1}' cannot generate ProjectTo method: {2}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }
