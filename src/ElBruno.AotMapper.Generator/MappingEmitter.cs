@@ -32,6 +32,19 @@ internal static class MappingEmitter
         // Generate collection mapping method
         EmitCollectionMappingMethod(sb, model);
 
+        // Generate EF Core projection method if compatible
+        var (projectionCode, incompatibilityReason) = EfProjectionEmitter.TryEmitProjectionMethod(model);
+        if (projectionCode != null)
+        {
+            sb.AppendLine();
+            sb.Append(projectionCode);
+        }
+        else if (incompatibilityReason != null)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"        // ProjectTo{model.DestinationTypeName}() not generated: {incompatibilityReason}");
+        }
+
         sb.AppendLine("    }");
         
         if (!string.IsNullOrEmpty(model.DestinationTypeNamespace))
@@ -133,6 +146,9 @@ internal static class MappingEmitter
             case MappingStrategy.CollectionMapping:
                 return EmitCollectionMapping(mapping, sourceAccess);
 
+            case MappingStrategy.DictionaryMapping:
+                return EmitDictionaryMapping(mapping, sourceAccess);
+
             case MappingStrategy.EnumToEnum:
                 return $"({mapping.DestinationPropertyType}){sourceAccess}";
 
@@ -146,6 +162,12 @@ internal static class MappingEmitter
                 if (mapping.IsNullable)
                     return $"string.IsNullOrEmpty({sourceAccess}) ? null : System.Enum.Parse<{enumType}>({sourceAccess})";
                 return $"System.Enum.Parse<{enumType}>({sourceAccess})";
+
+            case MappingStrategy.EnumToInt:
+                return $"({mapping.DestinationPropertyType}){sourceAccess}";
+
+            case MappingStrategy.IntToEnum:
+                return $"({mapping.DestinationPropertyType}){sourceAccess}";
 
             case MappingStrategy.CustomConverter:
                 return $"new {mapping.ConverterType}().Convert({sourceAccess})";
@@ -176,6 +198,38 @@ internal static class MappingEmitter
         else
         {
             return $"{sourceAccess}.Select({conversionExpr}).ToList()";
+        }
+    }
+
+    private static string EmitDictionaryMapping(PropertyMapping mapping, string sourceAccess)
+    {
+        // For dictionaries, we just copy the dictionary as-is (shallow copy)
+        // This handles Dictionary<K,V> and IReadOnlyDictionary<K,V>
+        var destType = mapping.DestinationPropertyType;
+        
+        if (mapping.IsNullable)
+        {
+            // For nullable dictionaries, check for null and create new dictionary
+            if (destType.Contains("IReadOnlyDictionary"))
+            {
+                return $"{sourceAccess} != null ? new System.Collections.Generic.Dictionary<{ExtractDictionaryTypeArgs(destType)}>({sourceAccess}) : null";
+            }
+            else
+            {
+                return $"{sourceAccess} != null ? new System.Collections.Generic.Dictionary<{ExtractDictionaryTypeArgs(destType)}>({sourceAccess}) : null";
+            }
+        }
+        else
+        {
+            // Non-nullable dictionary
+            if (destType.Contains("IReadOnlyDictionary"))
+            {
+                return $"new System.Collections.Generic.Dictionary<{ExtractDictionaryTypeArgs(destType)}>({sourceAccess})";
+            }
+            else
+            {
+                return $"new System.Collections.Generic.Dictionary<{ExtractDictionaryTypeArgs(destType)}>({sourceAccess})";
+            }
         }
     }
 
@@ -235,5 +289,19 @@ internal static class MappingEmitter
         }
 
         return string.Empty;
+    }
+
+    private static string ExtractDictionaryTypeArgs(string dictionaryType)
+    {
+        // Extract "TKey, TValue" from "Dictionary<TKey, TValue>" or similar
+        var genericStart = dictionaryType.IndexOf('<');
+        var genericEnd = dictionaryType.LastIndexOf('>');
+        
+        if (genericStart >= 0 && genericEnd > genericStart)
+        {
+            return dictionaryType.Substring(genericStart + 1, genericEnd - genericStart - 1);
+        }
+
+        return "object, object"; // Fallback
     }
 }

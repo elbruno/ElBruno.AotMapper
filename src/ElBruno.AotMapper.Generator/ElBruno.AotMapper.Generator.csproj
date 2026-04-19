@@ -6,7 +6,6 @@
     <Description>Roslyn incremental source generator for ElBruno.AotMapper. Generates compile-time DTO mapping code.</Description>
     <PackageTags>aot;mapper;dto;source-generator;roslyn;analyzer;native-aot</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <Version>0.5.0</Version>
 
     <IncludeSymbols>false</IncludeSymbols>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>

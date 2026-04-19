@@ -46,24 +46,27 @@ internal static class MappingParser
         }
 
         // Get destination properties (or constructor parameters for records)
-        IEnumerable<(string Name, ITypeSymbol Type, bool IsNullable)> destinationMembers;
+        IEnumerable<(string Name, ITypeSymbol Type, bool IsNullable, ISymbol Symbol)> destinationMembers;
 
         if (model.UseConstructorMapping && primaryConstructor != null)
         {
             destinationMembers = primaryConstructor.Parameters.Select(p => 
-                (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated));
+                (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated, (ISymbol)p));
         }
         else
         {
             destinationMembers = GetProperties(destinationType)
                 .Where(p => !p.IsReadOnly || model.IsDestinationRecord)
-                .Select(p => (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated));
+                .Select(p => (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated, (ISymbol)p));
         }
 
-        foreach (var (destName, destType, isDestNullable) in destinationMembers)
+        foreach (var (destName, destType, isDestNullable, destSymbol) in destinationMembers)
         {
-            // Check for MapIgnore
-            // For now, we'll handle this in the mapping logic
+            // Check for MapIgnore attribute
+            if (HasMapIgnoreAttribute(destSymbol))
+            {
+                continue; // Skip this property/parameter
+            }
             
             // Check for property rename
             var sourceName = destName;
@@ -86,7 +89,66 @@ internal static class MappingParser
                 continue;
             }
 
-            var strategy = DetermineStrategy(sourceProp.Type, destType, compilation);
+            // Check if source property is accessible
+            if (!IsAccessible(sourceProp, destinationType))
+            {
+                reportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.InaccessibleMember,
+                    Location.None,
+                    sourceName,
+                    sourceType.Name));
+                continue; // Skip this property
+            }
+
+            // Check for MapConverter attribute
+            var converterType = GetMapConverterType(destSymbol);
+            MappingStrategy strategy;
+            string? converterTypeName = null;
+
+            if (converterType != null)
+            {
+                // Validate converter implements IMapConverter<TSource, TDest>
+                if (ValidateConverter(converterType, sourceProp.Type, destType, compilation))
+                {
+                    strategy = MappingStrategy.CustomConverter;
+                    converterTypeName = converterType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                }
+                else
+                {
+                    // Report diagnostic for invalid converter
+                    reportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidConverter,
+                        Location.None,
+                        converterType.ToDisplayString(),
+                        sourceProp.Type.ToDisplayString(),
+                        destType.ToDisplayString()));
+                    continue; // Skip this property
+                }
+            }
+            else
+            {
+                strategy = DetermineStrategy(sourceProp.Type, destType, compilation);
+                
+                // If strategy is Direct but types don't actually match, report type mismatch
+                if (strategy == MappingStrategy.Direct)
+                {
+                    var sourceUnwrapped = UnwrapNullable(sourceProp.Type);
+                    var destUnwrapped = UnwrapNullable(destType);
+                    
+                    if (!SymbolEqualityComparer.Default.Equals(sourceUnwrapped, destUnwrapped) &&
+                        !AreAssignableTypes(sourceUnwrapped, destUnwrapped))
+                    {
+                        reportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.TypeMismatch,
+                            Location.None,
+                            destName,
+                            destType.ToDisplayString(),
+                            sourceProp.Type.ToDisplayString()));
+                        // Continue anyway with Direct strategy - let compiler catch any real issues
+                    }
+                }
+            }
+
             var mapping = new PropertyMapping
             {
                 SourcePropertyName = sourceName,
@@ -95,7 +157,8 @@ internal static class MappingParser
                 DestinationPropertyType = destType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 IsNullable = sourceProp.NullableAnnotation == NullableAnnotation.Annotated,
                 IsDestinationNullable = isDestNullable,
-                Strategy = strategy
+                Strategy = strategy,
+                ConverterType = converterTypeName
             };
 
             // Check nullability mismatch
@@ -135,6 +198,13 @@ internal static class MappingParser
             return MappingStrategy.CollectionMapping;
         }
 
+        // Check for dictionary types
+        if (IsDictionaryType(sourceType, out _, out _) &&
+            IsDictionaryType(destType, out _, out _))
+        {
+            return MappingStrategy.DictionaryMapping;
+        }
+
         // Check for enum conversions
         if (sourceUnwrapped.TypeKind == TypeKind.Enum && destUnwrapped.TypeKind == TypeKind.Enum)
         {
@@ -149,6 +219,18 @@ internal static class MappingParser
         if (sourceUnwrapped.SpecialType == SpecialType.System_String && destUnwrapped.TypeKind == TypeKind.Enum)
         {
             return MappingStrategy.StringToEnum;
+        }
+
+        // Enum to int conversion
+        if (sourceUnwrapped.TypeKind == TypeKind.Enum && IsIntegralType(destUnwrapped))
+        {
+            return MappingStrategy.EnumToInt;
+        }
+
+        // Int to enum conversion
+        if (IsIntegralType(sourceUnwrapped) && destUnwrapped.TypeKind == TypeKind.Enum)
+        {
+            return MappingStrategy.IntToEnum;
         }
 
         // Check if destination type has mapping
@@ -200,6 +282,136 @@ internal static class MappingParser
                     return true;
                 }
             }
+        }
+
+        return false;
+    }
+
+    private static bool IsDictionaryType(ITypeSymbol type, out ITypeSymbol? keyType, out ITypeSymbol? valueType)
+    {
+        keyType = null;
+        valueType = null;
+
+        if (type is INamedTypeSymbol namedType && namedType.TypeArguments.Length == 2)
+        {
+            var typeName = namedType.OriginalDefinition.ToDisplayString();
+            if (typeName.StartsWith("System.Collections.Generic.Dictionary<") ||
+                typeName.StartsWith("System.Collections.Generic.IDictionary<") ||
+                typeName.StartsWith("System.Collections.Generic.IReadOnlyDictionary<"))
+            {
+                keyType = namedType.TypeArguments[0];
+                valueType = namedType.TypeArguments[1];
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsIntegralType(ITypeSymbol type)
+    {
+        return type.SpecialType == SpecialType.System_Int32 ||
+               type.SpecialType == SpecialType.System_Int64 ||
+               type.SpecialType == SpecialType.System_Int16 ||
+               type.SpecialType == SpecialType.System_Byte ||
+               type.SpecialType == SpecialType.System_SByte ||
+               type.SpecialType == SpecialType.System_UInt32 ||
+               type.SpecialType == SpecialType.System_UInt64 ||
+               type.SpecialType == SpecialType.System_UInt16;
+    }
+
+    private static bool AreAssignableTypes(ITypeSymbol source, ITypeSymbol dest)
+    {
+        // Check if source can be assigned to dest (e.g., inheritance, interfaces)
+        if (source.Equals(dest, SymbolEqualityComparer.Default))
+            return true;
+
+        // Check for inheritance
+        var current = source;
+        while (current != null)
+        {
+            if (current.Equals(dest, SymbolEqualityComparer.Default))
+                return true;
+            current = current.BaseType;
+        }
+
+        // Check for interface implementation
+        foreach (var @interface in source.AllInterfaces)
+        {
+            if (@interface.Equals(dest, SymbolEqualityComparer.Default))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasMapIgnoreAttribute(ISymbol symbol)
+    {
+        const string mapIgnoreAttributeName = "ElBruno.AotMapper.MapIgnoreAttribute";
+        return symbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == mapIgnoreAttributeName);
+    }
+
+    private static bool IsAccessible(IPropertySymbol property, INamedTypeSymbol destinationType)
+    {
+        // Check if property is public
+        if (property.DeclaredAccessibility == Accessibility.Public)
+            return true;
+
+        // Check if property is internal and destination type is in the same assembly
+        if (property.DeclaredAccessibility == Accessibility.Internal)
+        {
+            var sourceAssembly = property.ContainingAssembly;
+            var destAssembly = destinationType.ContainingAssembly;
+
+            // Same assembly - accessible
+            if (SymbolEqualityComparer.Default.Equals(sourceAssembly, destAssembly))
+                return true;
+
+            // Check for InternalsVisibleTo
+            foreach (var attr in sourceAssembly.GetAttributes())
+            {
+                if (attr.AttributeClass?.Name == "InternalsVisibleToAttribute" &&
+                    attr.ConstructorArguments.Length > 0 &&
+                    attr.ConstructorArguments[0].Value is string assemblyName)
+                {
+                    // Simple name comparison (could be more sophisticated)
+                    if (destAssembly.Name == assemblyName.Split(',')[0].Trim())
+                        return true;
+                }
+            }
+        }
+
+        // Private, protected, or other - not accessible
+        return false;
+    }
+
+    private static INamedTypeSymbol? GetMapConverterType(ISymbol symbol)
+    {
+        const string mapConverterAttributeName = "ElBruno.AotMapper.MapConverterAttribute";
+        var converterAttr = symbol.GetAttributes()
+            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == mapConverterAttributeName);
+
+        if (converterAttr == null || converterAttr.ConstructorArguments.Length == 0)
+            return null;
+
+        return converterAttr.ConstructorArguments[0].Value as INamedTypeSymbol;
+    }
+
+    private static bool ValidateConverter(INamedTypeSymbol converterType, ITypeSymbol sourceType, ITypeSymbol destType, Compilation compilation)
+    {
+        // Check if converter implements IMapConverter<TSource, TDest>
+        var mapConverterInterface = compilation.GetTypeByMetadataName("ElBruno.AotMapper.IMapConverter`2");
+        if (mapConverterInterface == null)
+            return false;
+
+        // Construct the expected interface: IMapConverter<sourceType, destType>
+        var expectedInterface = mapConverterInterface.Construct(sourceType, destType);
+
+        // Check if converter implements the expected interface
+        foreach (var @interface in converterType.AllInterfaces)
+        {
+            if (SymbolEqualityComparer.Default.Equals(@interface, expectedInterface))
+                return true;
         }
 
         return false;

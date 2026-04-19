@@ -31,6 +31,38 @@
 
 ---
 
+## Why ElBruno.AotMapper vs AutoMapper / Mapperly?
+
+Choosing a mapper depends on your scenario. Here's how we compare:
+
+| Feature | ElBruno.AotMapper | AutoMapper | Mapperly |
+|---------|-------------------|-----------|----------|
+| **NativeAOT Safe** | ✅ Full | ⚠️ Limited | ✅ Full |
+| **Compile-time Errors** | ✅ Yes | ❌ Runtime | ✅ Yes |
+| **Zero Reflection** | ✅ Yes | ❌ Heavy | ✅ Yes |
+| **EF Core Projections** | ✅ Yes (v0.6+) | ⚠️ QueryableExtensions | ✅ Yes |
+| **Custom Converters** | ✅ `[MapConverter]` | ✅ ValueResolver | ✅ Custom maps |
+| **Learning Curve** | 🟢 Minimal | 🟠 Moderate | 🟢 Minimal |
+| **Runtime Cost** | 🟢 ~5% of hand-coded | 🟡 ~30-50% | 🟢 ~5-10% |
+| **Feature Richness** | 🟡 Core scenarios | 🟢 Extensive | 🟢 Extensive |
+
+**Choose ElBruno.AotMapper if:**
+- You need **NativeAOT** deployment or strict **trimming**
+- You want **compile-time safety** with strong diagnostics
+- You're building **cloud-native** or **serverless** workloads (less startup time, smaller memory footprint)
+- You appreciate **minimal dependencies** for simple scenarios
+
+**Choose AutoMapper if:**
+- You need **maximum configurability** (convention-based mapping, conditional mapping, etc.)
+- Your codebase is not targeting NativeAOT
+- You want battle-tested maturity and extensive plugin ecosystem
+
+**Choose Mapperly if:**
+- You want **compile-time generation** like ElBruno.AotMapper but don't need EF projection helpers
+- You prefer **attribute-free** or **profile-based** mapping rules
+
+---
+
 ## Quick Start
 
 ### Installation

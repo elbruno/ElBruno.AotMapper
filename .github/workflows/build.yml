@@ -14,12 +14,15 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f69735f18ea3fca10e5218a4a1ba9476 # v4.2.2
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@4d6c8fcf3c8f7a60068d26b594648e99df24cee3 # v4.1.0
         with:
           dotnet-version: |
             8.0.x
@@ -32,11 +35,44 @@ jobs:
         run: dotnet build ElBruno.AotMapper.slnx --no-restore
 
       - name: Test
-        run: dotnet test ElBruno.AotMapper.slnx --no-build --framework net8.0 --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test ElBruno.AotMapper.slnx --no-build --framework net8.0 --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage"
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         if: always()
         with:
-          name: test-results
+          name: test-results-${{ matrix.os }}
           path: "**/test-results.trx"
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        if: always()
+        with:
+          name: coverage-${{ matrix.os }}
+          path: "**/coverage.cobertura.xml"
+
+  native-aot-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f69735f18ea3fca10e5218a4a1ba9476 # v4.2.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@4d6c8fcf3c8f7a60068d26b594648e99df24cee3 # v4.1.0
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish NativeAOT sample
+        run: dotnet publish src/samples/NativeAotSample/NativeAotSample.csproj -c Release -r linux-x64 -p:PublishAot=true -o ./aot-out
+
+      - name: Run NativeAOT binary
+        run: |
+          ./aot-out/NativeAotSample > aot-output.txt
+          cat aot-output.txt
+
+      - name: Verify AOT output
+        run: |
+          if ! grep -q "AOT mapping works" aot-output.txt; then
+            echo "❌ NativeAOT smoke test failed: expected output not found"
+            exit 1
+          fi
+          echo "✅ NativeAOT smoke test passed"

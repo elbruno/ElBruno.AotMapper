@@ -19,8 +19,11 @@ internal enum MappingStrategy
     Direct,
     NestedMapping,
     CollectionMapping,
+    DictionaryMapping,
     EnumToEnum,
     EnumToString,
     StringToEnum,
+    EnumToInt,
+    IntToEnum,
     CustomConverter
 }
