@@ -8,6 +8,7 @@
   <Folder Name="/src/tests/">
     <Project Path="src/tests/ElBruno.AotMapper.Tests/ElBruno.AotMapper.Tests.csproj" />
     <Project Path="src/tests/ElBruno.AotMapper.Generator.Tests/ElBruno.AotMapper.Generator.Tests.csproj" />
+    <Project Path="src/tests/ElBruno.AotMapper.EntityFramework.Tests/ElBruno.AotMapper.EntityFramework.Tests.csproj" />
   </Folder>
   <Folder Name="/src/samples/">
     <Project Path="src/samples/MinimalApiSample/MinimalApiSample.csproj" />
