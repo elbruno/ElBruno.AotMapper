@@ -89,6 +89,17 @@ internal static class MappingParser
                 continue;
             }
 
+            // Check if source property is accessible
+            if (!IsAccessible(sourceProp, destinationType))
+            {
+                reportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.InaccessibleMember,
+                    Location.None,
+                    sourceName,
+                    sourceType.Name));
+                continue; // Skip this property
+            }
+
             // Check for MapConverter attribute
             var converterType = GetMapConverterType(destSymbol);
             MappingStrategy strategy;
@@ -242,6 +253,40 @@ internal static class MappingParser
     {
         const string mapIgnoreAttributeName = "ElBruno.AotMapper.MapIgnoreAttribute";
         return symbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == mapIgnoreAttributeName);
+    }
+
+    private static bool IsAccessible(IPropertySymbol property, INamedTypeSymbol destinationType)
+    {
+        // Check if property is public
+        if (property.DeclaredAccessibility == Accessibility.Public)
+            return true;
+
+        // Check if property is internal and destination type is in the same assembly
+        if (property.DeclaredAccessibility == Accessibility.Internal)
+        {
+            var sourceAssembly = property.ContainingAssembly;
+            var destAssembly = destinationType.ContainingAssembly;
+
+            // Same assembly - accessible
+            if (SymbolEqualityComparer.Default.Equals(sourceAssembly, destAssembly))
+                return true;
+
+            // Check for InternalsVisibleTo
+            foreach (var attr in sourceAssembly.GetAttributes())
+            {
+                if (attr.AttributeClass?.Name == "InternalsVisibleToAttribute" &&
+                    attr.ConstructorArguments.Length > 0 &&
+                    attr.ConstructorArguments[0].Value is string assemblyName)
+                {
+                    // Simple name comparison (could be more sophisticated)
+                    if (destAssembly.Name == assemblyName.Split(',')[0].Trim())
+                        return true;
+                }
+            }
+        }
+
+        // Private, protected, or other - not accessible
+        return false;
     }
 
     private static INamedTypeSymbol? GetMapConverterType(ISymbol symbol)
