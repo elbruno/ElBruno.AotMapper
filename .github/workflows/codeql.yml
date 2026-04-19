@@ -23,28 +23,26 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65f69735f18ea3fca10e5218a4a1ba9476 # v4.2.2
+        uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@4d6c8fcf3c8f7a60068d26b594648e99df24cee3 # v4.1.0
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
+          dotnet-version: 8.0.x
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@df5a14dc28094dc936e103b37d749c6628682b60 # v3.28.0
+        uses: github/codeql-action/init@v3
         with:
           languages: csharp
           queries: security-and-quality
 
       - name: Restore dependencies
-        run: dotnet restore ElBruno.AotMapper.slnx
+        run: dotnet restore ElBruno.AotMapper.slnx -p:TargetFrameworks=net8.0
 
       - name: Build
-        run: dotnet build ElBruno.AotMapper.slnx --no-restore
+        run: dotnet build ElBruno.AotMapper.slnx --no-restore -p:TargetFrameworks=net8.0
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@df5a14dc28094dc936e103b37d749c6628682b60 # v3.28.0
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:csharp"
