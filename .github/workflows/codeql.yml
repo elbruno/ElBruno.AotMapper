@@ -37,10 +37,10 @@ jobs:
           queries: security-and-quality
 
       - name: Restore dependencies
-        run: dotnet restore ElBruno.AotMapper.slnx -p:TargetFrameworks=net8.0
+        run: dotnet restore ElBruno.AotMapper.slnx
 
       - name: Build
-        run: dotnet build ElBruno.AotMapper.slnx --no-restore -p:TargetFrameworks=net8.0
+        run: dotnet build ElBruno.AotMapper.slnx --no-restore
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

@@ -27,10 +27,10 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore
-        run: dotnet restore ElBruno.AotMapper.slnx -p:TargetFrameworks=net8.0
+        run: dotnet restore ElBruno.AotMapper.slnx
 
       - name: Build
-        run: dotnet build ElBruno.AotMapper.slnx --no-restore -p:TargetFrameworks=net8.0
+        run: dotnet build ElBruno.AotMapper.slnx --no-restore
 
       - name: Test
         run: dotnet test ElBruno.AotMapper.slnx --no-build --framework net8.0 --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage"
@@ -60,7 +60,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Publish NativeAOT sample
-        run: dotnet publish src/samples/NativeAotSample/NativeAotSample.csproj -c Release -r linux-x64 -p:PublishAot=true -o ./aot-out
+        run: dotnet publish src/samples/NativeAotSample/NativeAotSample.csproj -c Release -f net8.0 -r linux-x64 -p:PublishAot=true -o ./aot-out
 
       - name: Run NativeAOT binary
         run: |
