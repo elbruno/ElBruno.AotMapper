@@ -33,11 +33,16 @@ public class ApplyProjectionTests
     public void ApplyProjection_Helper_Works()
     {
         // Arrange
+        var connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        
         var options = new DbContextOptionsBuilder<TestDbContext>()
-            .UseInMemoryDatabase(databaseName: "ApplyProjection_Test")
+            .UseSqlite(connection)
             .Options;
 
         using var context = new TestDbContext(options);
+        context.Database.EnsureCreated();
+        
         context.Products.AddRange(
             new Product { Id = 1, Name = "Product A", Price = 10.99m, Status = ProductStatus.Active },
             new Product { Id = 2, Name = "Product B", Price = 20.50m, Status = ProductStatus.Discontinued }
@@ -54,6 +59,8 @@ public class ApplyProjectionTests
         Assert.Equal(2, results.Count);
         Assert.Equal("Product A", results[0].Name);
         Assert.Equal("Active", results[0].Status);
+        
+        connection.Close();
     }
 }
 
