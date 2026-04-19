@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Actions pinned to commit SHAs** — All workflow actions pinned to specific commit hashes for supply chain security
 - **NativeAOT publish verification** — CI smoke test added to verify NativeAOT publish succeeds without warnings
 
+### Known Limitations / v0.7 Roadmap
+
+The following scenarios are tracked by skipped tests in the suite and will be addressed in v0.7:
+
+- **AOTMAP004** for repeated `[MapFrom(typeof(SameSource))]` on the same destination
+- **Open generic source types** in `MapFrom` (e.g., `Source<T>`)
+- **Records with primary-constructor parameters mixed with extra mutable properties**
+
 ## [0.5.0]
 
 See [commit history](https://github.com/elbruno/ElBruno.AotMapper/commits) for detailed changes in the 0.5.0 release.
