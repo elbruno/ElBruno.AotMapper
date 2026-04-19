@@ -89,7 +89,36 @@ internal static class MappingParser
                 continue;
             }
 
-            var strategy = DetermineStrategy(sourceProp.Type, destType, compilation);
+            // Check for MapConverter attribute
+            var converterType = GetMapConverterType(destSymbol);
+            MappingStrategy strategy;
+            string? converterTypeName = null;
+
+            if (converterType != null)
+            {
+                // Validate converter implements IMapConverter<TSource, TDest>
+                if (ValidateConverter(converterType, sourceProp.Type, destType, compilation))
+                {
+                    strategy = MappingStrategy.CustomConverter;
+                    converterTypeName = converterType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                }
+                else
+                {
+                    // Report diagnostic for invalid converter
+                    reportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidConverter,
+                        Location.None,
+                        converterType.ToDisplayString(),
+                        sourceProp.Type.ToDisplayString(),
+                        destType.ToDisplayString()));
+                    continue; // Skip this property
+                }
+            }
+            else
+            {
+                strategy = DetermineStrategy(sourceProp.Type, destType, compilation);
+            }
+
             var mapping = new PropertyMapping
             {
                 SourcePropertyName = sourceName,
@@ -98,7 +127,8 @@ internal static class MappingParser
                 DestinationPropertyType = destType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 IsNullable = sourceProp.NullableAnnotation == NullableAnnotation.Annotated,
                 IsDestinationNullable = isDestNullable,
-                Strategy = strategy
+                Strategy = strategy,
+                ConverterType = converterTypeName
             };
 
             // Check nullability mismatch
@@ -212,6 +242,38 @@ internal static class MappingParser
     {
         const string mapIgnoreAttributeName = "ElBruno.AotMapper.MapIgnoreAttribute";
         return symbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == mapIgnoreAttributeName);
+    }
+
+    private static INamedTypeSymbol? GetMapConverterType(ISymbol symbol)
+    {
+        const string mapConverterAttributeName = "ElBruno.AotMapper.MapConverterAttribute";
+        var converterAttr = symbol.GetAttributes()
+            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == mapConverterAttributeName);
+
+        if (converterAttr == null || converterAttr.ConstructorArguments.Length == 0)
+            return null;
+
+        return converterAttr.ConstructorArguments[0].Value as INamedTypeSymbol;
+    }
+
+    private static bool ValidateConverter(INamedTypeSymbol converterType, ITypeSymbol sourceType, ITypeSymbol destType, Compilation compilation)
+    {
+        // Check if converter implements IMapConverter<TSource, TDest>
+        var mapConverterInterface = compilation.GetTypeByMetadataName("ElBruno.AotMapper.IMapConverter`2");
+        if (mapConverterInterface == null)
+            return false;
+
+        // Construct the expected interface: IMapConverter<sourceType, destType>
+        var expectedInterface = mapConverterInterface.Construct(sourceType, destType);
+
+        // Check if converter implements the expected interface
+        foreach (var @interface in converterType.AllInterfaces)
+        {
+            if (SymbolEqualityComparer.Default.Equals(@interface, expectedInterface))
+                return true;
+        }
+
+        return false;
     }
 
     private static IEnumerable<IPropertySymbol> GetProperties(ITypeSymbol type)
