@@ -46,24 +46,27 @@ internal static class MappingParser
         }
 
         // Get destination properties (or constructor parameters for records)
-        IEnumerable<(string Name, ITypeSymbol Type, bool IsNullable)> destinationMembers;
+        IEnumerable<(string Name, ITypeSymbol Type, bool IsNullable, ISymbol Symbol)> destinationMembers;
 
         if (model.UseConstructorMapping && primaryConstructor != null)
         {
             destinationMembers = primaryConstructor.Parameters.Select(p => 
-                (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated));
+                (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated, (ISymbol)p));
         }
         else
         {
             destinationMembers = GetProperties(destinationType)
                 .Where(p => !p.IsReadOnly || model.IsDestinationRecord)
-                .Select(p => (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated));
+                .Select(p => (p.Name, p.Type, p.NullableAnnotation == NullableAnnotation.Annotated, (ISymbol)p));
         }
 
-        foreach (var (destName, destType, isDestNullable) in destinationMembers)
+        foreach (var (destName, destType, isDestNullable, destSymbol) in destinationMembers)
         {
-            // Check for MapIgnore
-            // For now, we'll handle this in the mapping logic
+            // Check for MapIgnore attribute
+            if (HasMapIgnoreAttribute(destSymbol))
+            {
+                continue; // Skip this property/parameter
+            }
             
             // Check for property rename
             var sourceName = destName;
@@ -203,6 +206,12 @@ internal static class MappingParser
         }
 
         return false;
+    }
+
+    private static bool HasMapIgnoreAttribute(ISymbol symbol)
+    {
+        const string mapIgnoreAttributeName = "ElBruno.AotMapper.MapIgnoreAttribute";
+        return symbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == mapIgnoreAttributeName);
     }
 
     private static IEnumerable<IPropertySymbol> GetProperties(ITypeSymbol type)
