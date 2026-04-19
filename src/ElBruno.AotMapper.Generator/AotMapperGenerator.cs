@@ -46,9 +46,48 @@ public sealed class AotMapperGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(mappingsWithCompilation, static (spc, data) =>
         {
             var (mappings, compilation) = data;
+            
+            // Check for duplicate mappings (same source + dest combination)
+            var seen = new HashSet<(string, string)>();
+            var duplicates = new HashSet<(string, string)>();
+            
             foreach (var mappingInfo in mappings)
             {
                 if (mappingInfo is null)
+                    continue;
+
+                var key = (mappingInfo.Value.SourceTypeFullName, mappingInfo.Value.DestinationTypeFullName);
+                if (!seen.Add(key))
+                {
+                    duplicates.Add(key);
+                }
+            }
+
+            // Report duplicate mapping diagnostics
+            foreach (var (sourceType, destType) in duplicates)
+            {
+                var diagnostic = Diagnostic.Create(
+                    DiagnosticDescriptors.DuplicateMapping,
+                    Location.None,
+                    destType);
+                spc.ReportDiagnostic(diagnostic);
+            }
+
+            // Generate mappings (skip duplicates)
+            var processed = new HashSet<(string, string)>();
+            foreach (var mappingInfo in mappings)
+            {
+                if (mappingInfo is null)
+                    continue;
+
+                var key = (mappingInfo.Value.SourceTypeFullName, mappingInfo.Value.DestinationTypeFullName);
+                
+                // Skip if duplicate
+                if (duplicates.Contains(key))
+                    continue;
+                    
+                // Skip if already processed
+                if (!processed.Add(key))
                     continue;
 
                 GenerateMapping(spc, mappingInfo.Value, compilation);

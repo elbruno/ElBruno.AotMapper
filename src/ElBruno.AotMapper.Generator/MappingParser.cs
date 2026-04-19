@@ -128,6 +128,25 @@ internal static class MappingParser
             else
             {
                 strategy = DetermineStrategy(sourceProp.Type, destType, compilation);
+                
+                // If strategy is Direct but types don't actually match, report type mismatch
+                if (strategy == MappingStrategy.Direct)
+                {
+                    var sourceUnwrapped = UnwrapNullable(sourceProp.Type);
+                    var destUnwrapped = UnwrapNullable(destType);
+                    
+                    if (!SymbolEqualityComparer.Default.Equals(sourceUnwrapped, destUnwrapped) &&
+                        !AreAssignableTypes(sourceUnwrapped, destUnwrapped))
+                    {
+                        reportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.TypeMismatch,
+                            Location.None,
+                            destName,
+                            destType.ToDisplayString(),
+                            sourceProp.Type.ToDisplayString()));
+                        // Continue anyway with Direct strategy - let compiler catch any real issues
+                    }
+                }
             }
 
             var mapping = new PropertyMapping
@@ -299,6 +318,31 @@ internal static class MappingParser
                type.SpecialType == SpecialType.System_UInt32 ||
                type.SpecialType == SpecialType.System_UInt64 ||
                type.SpecialType == SpecialType.System_UInt16;
+    }
+
+    private static bool AreAssignableTypes(ITypeSymbol source, ITypeSymbol dest)
+    {
+        // Check if source can be assigned to dest (e.g., inheritance, interfaces)
+        if (source.Equals(dest, SymbolEqualityComparer.Default))
+            return true;
+
+        // Check for inheritance
+        var current = source;
+        while (current != null)
+        {
+            if (current.Equals(dest, SymbolEqualityComparer.Default))
+                return true;
+            current = current.BaseType;
+        }
+
+        // Check for interface implementation
+        foreach (var @interface in source.AllInterfaces)
+        {
+            if (@interface.Equals(dest, SymbolEqualityComparer.Default))
+                return true;
+        }
+
+        return false;
     }
 
     private static bool HasMapIgnoreAttribute(ISymbol symbol)
